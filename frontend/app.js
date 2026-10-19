@@ -7,7 +7,7 @@
    ========================================================= */
 
 // ⚙️ KONFIGURASI — TUKAR INI
-const API_URL = 'https://musicfy.rcash.my';
+const API_URL = 'https://api.musicfy.rcash.my';
 // Untuk local dev: 'http://localhost:8787'
 
 // ==================== STATE ====================
