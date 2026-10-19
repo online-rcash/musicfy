@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Musicfy — Streaming Muzik</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="app">
+    <!-- SIDEBAR -->
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-icon">🎵</div>
+        <div class="brand-name">Musicfy</div>
+      </div>
+
+      <nav class="nav">
+        <a class="nav-link active" data-page="home">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3L2 12h3v8h6v-6h2v6h6v-8h3L12 3z"/></svg>
+          <span>Home</span>
+        </a>
+        <a class="nav-link" data-page="search">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+          <span>Search</span>
+        </a>
+        <a class="nav-link" data-page="library">
+          <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 6H2v14a2 2 0 0 0 2 2h14v-2H4V6zm16-4H8a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2zm-1 9h-4v4h-2v-4H9V9h4V5h2v4h4v2z"/></svg>
+          <span>Your Library</span>
+        </a>
+      </nav>
+
+      <div class="playlists-section">
+        <h4>Your Playlists</h4>
+        <ul id="playlist-list" class="playlist-list">
+          <li class="playlist-item" data-playlist="liked">
+            <span>💚</span> Liked Songs
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- MAIN -->
+    <main class="main">
+      <header class="topbar">
+        <div class="topbar-left">
+          <button class="icon-btn" id="back-btn" title="Kembali">‹</button>
+          <button class="icon-btn" id="forward-btn" title="Ke Hadapan">›</button>
+        </div>
+        <div class="topbar-right">
+          <button class="user-badge" id="user-badge" title="Log Masuk">👤</button>
+        </div>
+      </header>
+
+      <div class="content" id="content"></div>
+    </main>
+  </div>
+
+  <!-- PLAYER BAR -->
+  <footer class="player">
+    <div class="np">
+      <img id="np-art" class="np-art" alt="" />
+      <div class="np-info">
+        <div class="np-title" id="np-title">Not playing</div>
+        <div class="np-artist" id="np-artist">Select a track</div>
+      </div>
+      <button class="icon-btn like-btn" id="like-btn" title="Like">♡</button>
+    </div>
+
+    <div class="player-center">
+      <div class="controls">
+        <button class="ctrl-btn" id="shuffle-btn" title="Shuffle">🔀</button>
+        <button class="ctrl-btn" id="prev-btn" title="Previous">⏮</button>
+        <button class="play-pause" id="play-btn" title="Play">▶</button>
+        <button class="ctrl-btn" id="next-btn" title="Next">⏭</button>
+        <button class="ctrl-btn" id="repeat-btn" title="Repeat">🔁</button>
+      </div>
+      <div class="progress-wrap">
+        <span class="time" id="current-time">0:00</span>
+        <input type="range" id="progress" min="0" max="1000" value="0" />
+        <span class="time" id="duration">0:00</span>
+      </div>
+    </div>
+
+    <div class="player-right">
+      <button class="ctrl-btn" id="vol-btn" title="Mute">🔊</button>
+      <input type="range" id="volume" min="0" max="100" value="70" />
+    </div>
+  </footer>
+
+  <!-- ===== LOGIN MODAL ===== -->
+  <div class="modal-overlay" id="login-modal" hidden>
+    <div class="modal">
+      <button class="modal-close" id="modal-close">×</button>
+      <h2 class="modal-title">Log Masuk ke Musicfy</h2>
+      <p class="modal-sub">Segerakkan liked songs & playlist anda merentas peranti.</p>
+
+      <button class="btn-google" id="btn-google">
+        <svg width="20" height="20" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        Teruskan dengan Google
+      </button>
+
+      <div class="divider"><span>atau</span></div>
+
+      <div id="otp-step-1">
+        <label class="field-label">Log masuk dengan emel</label>
+        <input type="email" id="email-input" class="field-input" placeholder="nama@emel.com" />
+        <button class="btn-primary" id="btn-send-otp">Hantar Kod OTP</button>
+      </div>
+
+      <div id="otp-step-2" hidden>
+        <label class="field-label">Masukkan kod 6-digit yang dihantar ke <b id="otp-email-display"></b></label>
+        <input type="text" id="otp-input" class="field-input otp-input" maxlength="6" inputmode="numeric" placeholder="000000" />
+        <button class="btn-primary" id="btn-verify-otp">Sahkan</button>
+        <button class="btn-text" id="btn-resend-otp">Hantar semula kod</button>
+        <button class="btn-text" id="btn-change-email">← Tukar emel</button>
+      </div>
+
+      <div class="modal-error" id="modal-error"></div>
+      <div class="modal-info" id="modal-info"></div>
+    </div>
+  </div>
+
+  <!-- ===== USER MENU ===== -->
+  <div class="user-menu" id="user-menu" hidden>
+    <div class="user-menu-header">
+      <img id="menu-avatar" class="menu-avatar" alt="" />
+      <div>
+        <div class="menu-name" id="menu-name">User</div>
+        <div class="menu-email" id="menu-email">user@email.com</div>
+      </div>
+    </div>
+    <button class="menu-item" id="menu-logout">Log Keluar</button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
