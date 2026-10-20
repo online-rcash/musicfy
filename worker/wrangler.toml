@@ -4,15 +4,11 @@ compatibility_date = "2024-10-01"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "GANDA_ID_KV_KV_ANDA_DI_SINI"
+id = "ID_KV_ANDA_DI_SINI"
 
 [vars]
-WORKER_URL = "https://musicfy-worker.YOURNAME.workers.dev"
-FRONTEND_URL = "https://YOURNAME.github.io/musicfy/"
-ALLOWED_ORIGINS = "https://YOURNAME.github.io,http://localhost:3000,http://localhost:8080"
-EMAIL_FROM = "Musicfy <noreply@yourdomain.com>"
-
-# Secrets - set dengan:
-# wrangler secret put GOOGLE_CLIENT_ID
-# wrangler secret put GOOGLE_CLIENT_SECRET
-# wrangler secret put RESEND_API_KEY
+WORKER_URL         = "https://musicfy.rcash.my"
+FRONTEND_URL       = "https://musicfy.rcash.my"
+ALLOWED_ORIGINS    = "https://musicfy.rcash.my"
+EMAIL_FROM_ADDRESS = "no-reply@rcash.my"
+EMAIL_FROM_NAME    = "Musicfy"
