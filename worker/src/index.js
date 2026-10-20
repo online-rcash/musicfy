@@ -1,9 +1,10 @@
 /* =========================================================
    Musicfy Cloudflare Worker
    - Google OAuth 2.0
-   - Email + OTP (via Resend)
+   - Email + OTP (via Mailjet)
    - Session token (Bearer)
    - Liked songs & Playlists storage (KV)
+   Domain: musicfy.rcash.my
    ========================================================= */
 
 const SESSION_TTL = 60 * 60 * 24 * 30; // 30 hari
@@ -44,14 +45,15 @@ export default {
       if (p === '/api/playlists' && ['GET', 'POST', 'DELETE'].includes(request.method))
         return handlePlaylists(request, env);
 
-      // ---- HEALTH ----
-      if (p === '/' || p === '/health')
-        return json({ ok: true, service: 'musicfy-worker' }, 200, env);
+      // ---- HEALTH (untuk testing sahaja — bukan route production) ----
+      if (p === '/health')
+        return json({ ok: true, service: 'musicfy-worker', time: new Date().toISOString() }, 200, env, request);
 
-      return json({ error: 'Not found' }, 404, env);
+      // NOTE: '/' tidak ditangkap — biar pergi ke GitHub Pages
+      return json({ error: 'Not found' }, 404, env, request);
     } catch (err) {
       console.error('Worker error:', err);
-      return json({ error: err.message || 'Internal error' }, 500, env);
+      return json({ error: err.message || 'Internal error' }, 500, env, request);
     }
   },
 };
@@ -76,6 +78,11 @@ function corsHeaders(request, env) {
 function json(data, status = 200, env = null, request = null) {
   const headers = { 'Content-Type': 'application/json' };
   if (env && request) Object.assign(headers, corsHeaders(request, env));
+  else if (env) {
+    // Fallback: kalau request tiada tapi env ada, hantar CORS untuk origin pertama
+    const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (allowed[0]) headers['Access-Control-Allow-Origin'] = allowed[0];
+  }
   return new Response(JSON.stringify(data), { status, headers });
 }
 
@@ -111,7 +118,6 @@ async function handleGoogleStart(request, env) {
   const url = new URL(request.url);
   const redirectTo = url.searchParams.get('redirect_uri') || env.FRONTEND_URL;
 
-  // Validate redirect_uri — hanya origin yang dibenarkan
   const allowed = (env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
   try {
     const rUrl = new URL(redirectTo);
@@ -163,7 +169,8 @@ async function handleGoogleCallback(request, env) {
     }),
   });
   if (!tokenRes.ok) {
-    console.error('Token exchange failed:', await tokenRes.text());
+    const errText = await tokenRes.text().catch(() => 'unknown');
+    console.error('Token exchange failed:', errText);
     return json({ error: 'Gagal tukar code' }, 400, env, request);
   }
   const tokens = await tokenRes.json();
@@ -201,7 +208,7 @@ async function handleGoogleCallback(request, env) {
 }
 
 /* =========================================================
-   EMAIL + OTP
+   EMAIL + OTP (via MAILJET)
    ========================================================= */
 
 async function handleSendOTP(request, env) {
@@ -212,11 +219,11 @@ async function handleSendOTP(request, env) {
     return json({ error: 'Emel tidak sah' }, 400, env, request);
   }
 
-  // Cooldown
+  // Cooldown check
   const last = await env.KV.get(`otp-last:${email}`);
   if (last && Date.now() - parseInt(last) < OTP_COOLDOWN * 1000) {
     const wait = Math.ceil((OTP_COOLDOWN * 1000 - (Date.now() - parseInt(last))) / 1000);
-    return json({ error: `Sila tunggu ${wait} detik` }, 429, env, request);
+    return json({ error: `Sila tunggu ${wait} detik sebelum minta kod baru` }, 429, env, request);
   }
 
   const code = String(Math.floor(100000 + Math.random() * 900000));
@@ -227,33 +234,44 @@ async function handleSendOTP(request, env) {
   );
   await env.KV.put(`otp-last:${email}`, String(Date.now()), { expirationTtl: OTP_COOLDOWN });
 
-  // Hantar emel via Resend (jika ada API key). Kalau tiada, log ke console (dev mode).
-  if (env.RESEND_API_KEY) {
-    const emailRes = await fetch('https://api.resend.com/emails', {
+  // Hantar via Mailjet
+  if (env.MAILJET_API_KEY && env.MAILJET_SECRET_KEY) {
+    const credentials = btoa(`${env.MAILJET_API_KEY}:${env.MAILJET_SECRET_KEY}`);
+
+    const emailRes = await fetch('https://api.mailjet.com/v3.1/send', {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${env.RESEND_API_KEY}`,
+        Authorization: `Basic ${credentials}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: env.EMAIL_FROM || 'Musicfy <onboarding@resend.dev>',
-        to: [email],
-        subject: `Kod OTP Musicfy: ${code}`,
-        html: `
-          <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#121212;color:#fff;border-radius:10px">
-            <h2 style="color:#1db954;margin:0 0 16px">🎵 Musicfy</h2>
-            <p>Kod OTP anda:</p>
-            <p style="font-size:36px;font-weight:bold;letter-spacing:10px;background:#1f1f1f;padding:16px;text-align:center;border-radius:8px">${code}</p>
-            <p style="color:#b3b3b3;font-size:13px">Kod ini sah selama 5 minit. Jangan kongsi dengan sesiapa.</p>
-          </div>
-        `,
+        Messages: [
+          {
+            From: {
+              Email: env.EMAIL_FROM_ADDRESS,
+              Name: env.EMAIL_FROM_NAME || 'Musicfy',
+            },
+            To: [{ Email: email }],
+            Subject: `Kod OTP Musicfy: ${code}`,
+            HTMLPart: `
+              <div style="font-family:sans-serif;max-width:480px;margin:0 auto;padding:24px;background:#121212;color:#fff;border-radius:10px">
+                <h2 style="color:#1db954;margin:0 0 16px">Musicfy</h2>
+                <p>Kod OTP anda:</p>
+                <p style="font-size:36px;font-weight:bold;letter-spacing:10px;background:#1f1f1f;padding:16px;text-align:center;border-radius:8px">${code}</p>
+                <p style="color:#b3b3b3;font-size:13px">Kod ini sah selama 5 minit. Jangan kongsi dengan sesiapa.</p>
+                <p style="color:#666;font-size:11px;margin-top:24px">Jika anda tidak meminta kod ini, abaikan emel ini.</p>
+              </div>
+            `,
+            TextPart: `Kod OTP Musicfy anda: ${code}\n\nKod ini sah selama 5 minit.`,
+          },
+        ],
       }),
     });
 
     if (!emailRes.ok) {
-      const err = await emailRes.text();
-      console.error('Resend error:', err);
-      return json({ error: 'Gagal hantar emel' }, 500, env, request);
+      const err = await emailRes.text().catch(() => 'unknown');
+      console.error('Mailjet error:', err);
+      return json({ error: 'Gagal hantar emel. Cuba lagi.' }, 500, env, request);
     }
   } else {
     // DEV MODE — log OTP ke console wrangler
@@ -261,7 +279,11 @@ async function handleSendOTP(request, env) {
   }
 
   return json(
-    { ok: true, message: 'OTP dihantar. Sila semak emel anda.', dev: !env.RESEND_API_KEY },
+    {
+      ok: true,
+      message: 'Kod OTP telah dihantar ke emel anda.',
+      dev: !(env.MAILJET_API_KEY && env.MAILJET_SECRET_KEY),
+    },
     200,
     env,
     request
@@ -280,12 +302,12 @@ async function handleVerifyOTP(request, env) {
 
   if (data.expiresAt < Date.now()) {
     await env.KV.delete(`otp:${email}`);
-    return json({ error: 'Kod tamat tempoh' }, 400, env, request);
+    return json({ error: 'Kod tamat tempoh. Sila minta kod baru.' }, 400, env, request);
   }
 
   if (data.attempts >= OTP_MAX_ATTEMPTS) {
     await env.KV.delete(`otp:${email}`);
-    return json({ error: 'Terlalu banyak percubaan. Minta kod baru.' }, 429, env, request);
+    return json({ error: 'Terlalu banyak percubaan. Sila minta kod baru.' }, 429, env, request);
   }
 
   if (data.code !== code) {
@@ -300,6 +322,7 @@ async function handleVerifyOTP(request, env) {
     );
   }
 
+  // Kod betul
   await env.KV.delete(`otp:${email}`);
 
   const userId = `email:${email}`;
@@ -388,7 +411,7 @@ async function handleLiked(request, env) {
 }
 
 /* =========================================================
-   PLAYLISTS (bonus)
+   PLAYLISTS
    ========================================================= */
 
 async function handlePlaylists(request, env) {
@@ -408,12 +431,7 @@ async function handlePlaylists(request, env) {
     if (!name) return json({ error: 'Nama playlist diperlukan' }, 400, env, request);
 
     const playlists = (await env.KV.get(key, 'json')) || [];
-    const pl = {
-      id: crypto.randomUUID(),
-      name,
-      tracks: [],
-      createdAt: Date.now(),
-    };
+    const pl = { id: crypto.randomUUID(), name, tracks: [], createdAt: Date.now() };
     playlists.push(pl);
     await env.KV.put(key, JSON.stringify(playlists));
     return json({ playlists, playlist: pl }, 200, env, request);
